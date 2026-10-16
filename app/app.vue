@@ -1,29 +1,39 @@
 <script setup lang="ts">
+const supabase = useSupabaseClient()
+
+const { data: dane, error } = await useAsyncData('events', async () => {
+  const { data, error } = await supabase.from('events').select('*')
+  if (error) {
+    console.error('Supabase error:', error)
+    throw error
+  }
+  return data
+})
+
+console.log(dane.value, error.value)
+
+
 const categories = [
   { slug: 'dniwolne', color: '#E5484D' },
   { slug: 'egzaminy', color: '#7C3AED' },
 ]
-const events = [
-  {
-    id: '1',
-    title: 'Ferie zimowe',
-    description: null,
-    start_date: '2027-01-18',
-    end_date: '2027-01-31',
-    category_slug: 'dniwolne',
-  },
-  {
-    id: '2',
-    title: 'Egzamin próbny',
-    description: null,
-    start_date: '2026-10-20',
-    end_date: '2026-10-20',
-    category_slug: 'egzaminy',
-  },
-]
+const events = []
+dane.value.forEach(element => {
+  events.push({
+    id:element.id,
+    title: element.nazwa,
+    start_date: element.start_data,
+    end_date: element.koniec_data,
+    category_slug: element.typ
+  })
+  console.log(element)
+});
+
 </script>
 
 <template>
+  <div class="bg-secondary">
+  </div>
   <ClientOnly>
     <CalendarMonthCalendar
       year-start="2026-09-01"

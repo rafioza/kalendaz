@@ -10,10 +10,12 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
+    "@nuxtjs/supabase": "^2.1.0",
     "@schedule-x/calendar": "^4.9.1",
     "@schedule-x/events-service": "^4.9.1",
     "@schedule-x/theme-default": "^4.9.1",
     "@schedule-x/vue": "^4.1.0",
+    "@supabase/server": "^1.9.2",
     "@tailwindcss/vite": "^4.3.3",
     "nuxt": "4.5.2",
     "tailwindcss": "^4.3.3",
