@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const supabase = useSupabaseClient()
+const user = useSupabaseUser()
 
 const { data: dane, error } = await useAsyncData('events', async () => {
   const { data, error } = await supabase.from('events').select('*')
@@ -14,16 +15,28 @@ console.log(dane.value, error.value)
 
 
 const categories = [
-  { slug: 'dniwolne', color: '#FF0000' },
-  { slug: 'egzaminy', color: '#7C3AED' },
-  { slug: 'rozpoczecie-zakonczenie' , color:'#FFFF00'},
+  { slug: 'dniwolne', label: 'Dni ustawowo wolne', color: '#FF0000' },
+  { slug: 'wolneodzajec', label: 'Dni wolne od zajęć', color: '#FDBA74' },
+  { slug: 'rozpoczecie-zakonczenie', label: 'Rozpoczęcie / zakończenie', color: '#FFFF00' },
+  { slug: 'egzaminy', label: 'Egzaminy', color: '#7C3AED' },
+  { slug: 'rada', label: 'Rada klasyfikacyjna', color: '#16A34A' },
+  { slug: 'zebrania', label: 'Zebrania z rodzicami', color: '#38BDF8' },
+  { slug: 'konsultacje', label: 'Konsultacje', color: '#0EA5E9' },
+  { slug: 'krew', label: 'Akcja oddawania krwi', color: '#D946EF' },
+  { slug: 'praktyki', label: 'Praktyki zawodowe', color: '#6366F1' },
 ]
 
 const items = [
   { label: 'Wszystko', value: 'wszystko' },
-  { label: 'Egzaminy', value: 'egzaminy' },
-  { label: 'Dni wolne', value: 'dniwolne' },
+  { label: 'Dni ustawowo wolne', value: 'dniwolne' },
+  { label: 'Dni wolne od zajęć', value: 'wolneodzajec' },
   { label: 'Rozpoczęcie / zakończenie', value: 'rozpoczecie-zakonczenie' },
+  { label: 'Egzaminy', value: 'egzaminy' },
+  { label: 'Rada klasyfikacyjna', value: 'rada' },
+  { label: 'Zebrania z rodzicami', value: 'zebrania' },
+  { label: 'Konsultacje', value: 'konsultacje' },
+  { label: 'Akcja oddawania krwi', value: 'krew' },
+  { label: 'Praktyki zawodowe', value: 'praktyki' },
 ]
 const value = ref('wszystko')
 
@@ -38,14 +51,31 @@ const events = computed(() =>
       category_slug: e.typ,
     }))
 )
-
 </script>
 
 <template>
-  <div class="bg-secondary p-3">
-     filtry: <USelect v-model="value" :items="items" />
+  <UHeader title="kalendarz" :toggle="false" class="bg-secondary">
+    <template #right>
+       <UButton v-if="!user" label="Zaloguj" to="/login" />
+  <UButton v-else label="Panel" to="/admin" />
+    </template>
+  </UHeader>
+
+  <div class="p-3 flex items-center gap-2">
+    filtry: <USelect v-model="value" :items="items" class="w-64" />
   </div>
-  <ClientOnly>
+  <div class="flex flex-wrap w-full">
+  <p
+    v-for="c in categories"
+    :key="c.slug"
+    class="text-center m-2 p-2 rounded-xl"
+    :style="{ backgroundColor: c.color, color: 'black' }"
+  >
+    {{ c.label }}
+  </p>
+</div>
+  <section class="flex justify-center items-center w-full p-3">
+    <ClientOnly>
     <CalendarMonthCalendar
       year-start="2026-09-01"
       year-end="2027-08-31"
@@ -53,9 +83,7 @@ const events = computed(() =>
       :events="events??[]"
     />
   </ClientOnly>
-  <div class="flex flex-wrap w-full" >
-    <p class="bg-purple-700 text-white text-center m-4 p-2 rounded-xl" >egzaminy</p>
-    <p class="text-white text-center bg-red-500 m-4 p-2 rounded-xl" >dni ustawowo wolne</p>
-    <p class="text-white bg-yellow-400 m-4 p-2 rounded-xl" >rozpoczęcie/zakończenie</p>
-  </div>
+  </section>
+  
+  
 </template>

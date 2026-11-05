@@ -9,7 +9,12 @@ export default defineNuxtConfig({
   },
   modules: ['@nuxtjs/supabase','@nuxt/ui'],
   supabase:{
-    redirect: false
+    redirectOptions: {
+    login: '/login',
+    callback: '/admin',
+    include: ['/admin(/*)?'],
+    exclude: ['/'],
+  },
   }
   
 })
