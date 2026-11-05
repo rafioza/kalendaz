@@ -7,6 +7,9 @@ export default defineNuxtConfig({
   vite: {
     plugins: [tailwindcss()],
   },
-  modules: ['@nuxtjs/supabase','@nuxt/ui']
+  modules: ['@nuxtjs/supabase','@nuxt/ui'],
+  supabase:{
+    redirect: false
+  }
   
 })
