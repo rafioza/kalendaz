@@ -40,7 +40,7 @@ const filtered = computed(() =>
 
 const labelOf = (slug: string) => items.find(i => i.value === slug)?.label ?? slug
 
-// ---------- dodawanie ----------
+
 const state = reactive({
   nazwa: '',
   start_data: '',
@@ -58,7 +58,7 @@ async function onSubmit() {
   await refresh()
 }
 
-// ---------- edycja w wierszu ----------
+
 const columns = [
   { accessorKey: 'nazwa', header: 'Nazwa' },
   { accessorKey: 'start_data', header: 'Początek' },

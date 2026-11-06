@@ -2,7 +2,7 @@
 
 Responsywna aplikacja webowa do prezentacji i zarządzania kalendarzem roku szkolnego. Uczniowie i nauczyciele widzą kalendarz z kolorowymi kategoriami wydarzeń, a administrator po zalogowaniu dodaje, edytuje i usuwa wydarzenia.
 
-![alt text](image.png)
+![alt text](docs/images/kalendarzL.png)
 
 ## Funkcje
 
