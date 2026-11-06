@@ -57,7 +57,7 @@ const events = computed(() =>
   <UHeader title="kalendarz" :toggle="false" class="bg-secondary">
     <template #right>
        <UButton v-if="!user" label="Zaloguj" to="/login" />
-  <UButton v-else label="Panel" to="/admin" />
+        <UButton v-else label="Panel" to="/admin" />
     </template>
   </UHeader>
 
@@ -65,14 +65,15 @@ const events = computed(() =>
     filtry: <USelect v-model="value" :items="items" class="w-64" />
   </div>
   <div class="flex flex-wrap w-full">
-  <p
+  <small
     v-for="c in categories"
     :key="c.slug"
     class="text-center m-2 p-2 rounded-xl"
     :style="{ backgroundColor: c.color, color: 'black' }"
   >
     {{ c.label }}
-  </p>
+  </small>
+ 
 </div>
   <section class="flex justify-center items-center w-full p-3">
     <ClientOnly>
