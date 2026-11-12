@@ -19,6 +19,8 @@
     "@schedule-x/vue": "^4.1.0",
     "@tailwindcss/vite": "^4.3.3",
     "h3": "^1.15.11",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "nuxt": "4.5.2",
     "tailwindcss": "^4.3.3",
     "temporal-polyfill": "0.3.2",

@@ -1,44 +1,22 @@
 <script setup lang="ts">
+import { useMediaQuery } from '@vueuse/core'
+import { categories, categoryItems } from '~/utils/categories'
+import { generateCalendarPdf, type CalEvent } from '~/utils/calendar-pdf'
+
+const SCHOOL_YEAR_START = 2026
+
 const supabase = useSupabaseClient()
 const user = useSupabaseUser()
 
-const { data: dane, error } = await useAsyncData('events', async () => {
-  const { data, error } = await supabase.from('events').select('*')
-  if (error) {
-    console.error('Supabase error:', error)
-    throw error
-  }
-  return data
-})
-
-console.log(dane.value, error.value)
-
-
-const categories = [
-  { slug: 'dniwolne', label: 'Dni ustawowo wolne', color: '#FF0000' },
-  { slug: 'wolneodzajec', label: 'Dni wolne od zajęć', color: '#FDBA74' },
-  { slug: 'rozpoczecie-zakonczenie', label: 'Rozpoczęcie / zakończenie', color: '#FFFF00' },
-  { slug: 'egzaminy', label: 'Egzaminy', color: '#7C3AED' },
-  { slug: 'rada', label: 'Rada klasyfikacyjna', color: '#16A34A' },
-  { slug: 'zebrania', label: 'Zebrania z rodzicami', color: '#38BDF8' },
-  { slug: 'konsultacje', label: 'Konsultacje', color: '#0EA5E9' },
-  { slug: 'krew', label: 'Akcja oddawania krwi', color: '#D946EF' },
-  { slug: 'praktyki', label: 'Praktyki zawodowe', color: '#6366F1' },
-]
-
-const items = [
-  { label: 'Wszystko', value: 'wszystko' },
-  { label: 'Dni ustawowo wolne', value: 'dniwolne' },
-  { label: 'Dni wolne od zajęć', value: 'wolneodzajec' },
-  { label: 'Rozpoczęcie / zakończenie', value: 'rozpoczecie-zakonczenie' },
-  { label: 'Egzaminy', value: 'egzaminy' },
-  { label: 'Rada klasyfikacyjna', value: 'rada' },
-  { label: 'Zebrania z rodzicami', value: 'zebrania' },
-  { label: 'Konsultacje', value: 'konsultacje' },
-  { label: 'Akcja oddawania krwi', value: 'krew' },
-  { label: 'Praktyki zawodowe', value: 'praktyki' },
-]
+const isMobile = useMediaQuery('(max-width: 768px)')
 const value = ref('wszystko')
+const loading = ref(false)
+
+const { data: dane } = await useAsyncData('events', async () => {
+  const { data, error } = await supabase.from('events').select('*')
+  if (error) throw error
+  return data as CalEvent[]
+})
 
 const events = computed(() =>
   (dane.value ?? [])
@@ -51,40 +29,70 @@ const events = computed(() =>
       category_slug: e.typ,
     }))
 )
+
+// PDF zawsze zawiera cały kalendarz, niezależnie od wybranego filtra
+async function downloadPdf() {
+  loading.value = true
+  try {
+    await generateCalendarPdf(dane.value ?? [], SCHOOL_YEAR_START)
+  } catch (e) {
+    console.error('Błąd generowania PDF:', e)
+  } finally {
+    loading.value = false
+  }
+}
 </script>
 
 <template>
   <UHeader title="kalendarz" :toggle="false" class="bg-secondary">
     <template #right>
-       <UButton v-if="!user" label="Zaloguj" to="/login" />
-        <UButton v-else label="Panel" to="/admin" />
+      <UButton v-if="!user" label="Zaloguj" to="/login" />
+      <UButton v-else label="Panel" to="/admin" />
     </template>
   </UHeader>
 
   <div class="p-3 flex items-center gap-2">
-    filtry: <USelect v-model="value" :items="items" class="w-64" />
+    filtry: <USelect v-model="value" :items="categoryItems" class="w-64" />
   </div>
+
   <div class="flex flex-wrap w-full">
-  <small
-    v-for="c in categories"
-    :key="c.slug"
-    class="text-center m-2 p-2 rounded-xl"
-    :style="{ backgroundColor: c.color, color: 'black' }"
-  >
-    {{ c.label }}
-  </small>
- 
-</div>
+    <template v-if="!isMobile">
+      <small
+        v-for="c in categories"
+        :key="c.slug"
+        class="text-center m-2 rounded-xl"
+        :style="{ color: c.color, border: '1px solid ' + c.color, padding: '0.5rem 1rem', display: 'inline-block' }"
+      >
+        {{ c.label }}
+      </small>
+    </template>
+  </div>
+
   <section class="flex justify-center items-center w-full p-3">
     <ClientOnly>
-    <CalendarMonthCalendar
-      year-start="2026-09-01"
-      year-end="2027-08-31"
-      :categories="categories"
-      :events="events??[]"
-    />
-  </ClientOnly>
+      <CalendarMonthCalendar
+        :year-start="`${SCHOOL_YEAR_START}-09-01`"
+        :year-end="`${SCHOOL_YEAR_START + 1}-08-31`"
+        :categories="categories"
+        :events="events ?? []"
+      />
+    </ClientOnly>
   </section>
-  
-  
+
+  <ul v-if="isMobile" class="flex flex-wrap w-full">
+    <li
+      v-for="c in categories"
+      :key="c.slug"
+      class="text-center m-2 rounded-xl"
+      :style="{ color: c.color }"
+    >
+      {{ c.label }}
+    </li>
+  </ul>
+
+  <div class="w-full text-center">
+    <UButton :loading="loading" :disabled="!dane?.length" @click="downloadPdf">
+      pobierz kalendarz w PDF
+    </UButton>
+  </div>
 </template>
