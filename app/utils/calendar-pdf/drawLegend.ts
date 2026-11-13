@@ -1,48 +1,90 @@
 import type { jsPDF } from 'jspdf'
 import { categories } from '../categories'
 import type { CalEvent } from './types'
-import { hexToRgb, parse } from './helpers'
+import { fmtRange } from './helpers'
+import { drawSwatch } from './hatch'
+import { getOverlayEvents } from './overlay'
+import { flowEntries, type Box, type FlowEntry } from './flowText'
 
-const fmt = (s: string) =>
-  parse(s).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' })
+// co ląduje w ramce po prawej, a co w kolumnach na dole
+const BOX_SLUGS = ['rozpoczecie-zakonczenie', 'dniwolne', 'wolneodzajec']
+const BOTTOM_SLUGS = ['rada', 'zebrania', 'konsultacje', 'krew', 'praktyki', 'egzaminy']
 
-export function drawLegend(doc: jsPDF, events: CalEvent[], y: number, margin: number) {
-  const pageW = doc.internal.pageSize.getWidth()
+// "Praktyki zawodowe - klasy 4DH, 4E, 4P" -> "4DH, 4E, 4P"
+const classesOf = (name: string) => name.match(/klasy?\s+(.+)$/i)?.[1] ?? name
 
-  // legenda (lewa strona)
-  doc.setFont('Roboto', 'bold').setFontSize(8).setTextColor(0, 0, 0)
-  doc.text('Legenda', margin, y)
-  doc.setFont('Roboto', 'normal').setFontSize(7)
-  categories.forEach((c, i) => {
-    const x = margin + (i % 3) * 62
-    const ly = y + 5 + Math.floor(i / 3) * 5
-    doc.setFillColor(...hexToRgb(c.color)).rect(x, ly - 3, 4, 3.5, 'F')
-    doc.setTextColor(0, 0, 0).text(c.label, x + 6, ly)
-  })
+function buildEntries(events: CalEvent[], slugs: string[]): FlowEntry[] {
+  const hatchOf = new Map(getOverlayEvents(events).map(e => [e.id, e.hatch] as const))
 
-  // lista wydarzeń (prawa strona, a gdy zabraknie miejsca – kolejna strona)
-  let lx = margin + 190
-  let ly = y
-  doc.setFont('Roboto', 'bold').setFontSize(8).text('Wydarzenia', lx, ly)
-  doc.setFont('Roboto', 'normal').setFontSize(6.5)
-  ly += 4
+  const out: FlowEntry[] = []
+  for (const slug of slugs) {
+    const cat = categories.find(c => c.slug === slug)
+    if (!cat) continue
+    const list = events
+      .filter(e => e.typ === slug)
+      .sort((a, b) => a.start_data.localeCompare(b.start_data))
+    if (!list.length) continue
 
-  const sorted = [...events].sort((a, b) => a.start_data.localeCompare(b.start_data))
-  for (const ev of sorted) {
-    if (ly > 205) {
-      doc.addPage()
-      lx = margin
-      ly = 15
-      doc.setFont('Roboto', 'normal').setFontSize(6.5)
+    out.push(
+      cat.overlay
+        ? { kind: 'heading', text: cat.label }               // bez zbiorczego kwadracika
+        : { kind: 'heading', text: cat.label, color: cat.color },
+    )
+    for (const ev of list) {
+      out.push({
+        kind: 'item',
+        date: fmtRange(ev.start_data, ev.koniec_data),
+        text: ev.nazwa,
+        hatch: cat.overlay ? hatchOf.get(ev.id) : undefined,
+      })
     }
-    const cat = categories.find(c => c.slug === ev.typ)
-    const range = ev.koniec_data && ev.koniec_data !== ev.start_data
-      ? `${fmt(ev.start_data)} – ${fmt(ev.koniec_data)}`
-      : fmt(ev.start_data)
-
-    if (cat) doc.setFillColor(...hexToRgb(cat.color)).rect(lx, ly - 2.4, 2.4, 2.4, 'F')
-    doc.setTextColor(0, 0, 0)
-    doc.text(`${range}  ${ev.nazwa}`, lx + 4, ly, { maxWidth: pageW - lx - margin - 4 })
-    ly += 3.2
   }
+  return out
+}
+
+// ramka po prawej: legenda kolorów + najważniejsze terminy
+export function drawLegendBox(doc: jsPDF, events: CalEvent[], box: Box) {
+  doc.setDrawColor(0, 0, 0).setLineWidth(0.4).rect(box.x, box.y, box.w, box.h, 'S')
+
+  const groups = getOverlayEvents(events)
+  const STEP = 3.5
+  let y = box.y + 4.5
+
+  for (const c of categories) {
+    if (c.calendar === false) continue // kategorie niewidoczne w kalendarzu nie mają koloru w legendzie
+
+    if (c.overlay) {
+      // nagłówek + po jednym wierszu na każdą grupę klas, każda z własnym kreskowaniem
+      doc.setFont('Roboto', 'bold').setFontSize(6).setTextColor(0, 0, 0)
+      doc.text(`${c.label} – klasy:`, box.x + 2.5, y)
+      y += STEP
+      for (const g of groups.filter(e => e.typ === c.slug)) {
+        drawSwatch(doc, box.x + 4, y - 2.6, 3.2, { hatches: [g.hatch] })
+        doc.setFont('Roboto', 'normal').setFontSize(6).setTextColor(0, 0, 0)
+        doc.text(classesOf(g.nazwa), box.x + 9, y, { maxWidth: box.w - 11 })
+        y += STEP
+      }
+      continue
+    }
+
+    drawSwatch(doc, box.x + 2.5, y - 2.6, 3.2, { fill: c.color })
+    doc.setFont('Roboto', 'normal').setFontSize(6).setTextColor(0, 0, 0)
+    doc.text(c.label, box.x + 7.5, y)
+    y += STEP
+  }
+
+  y += 0.5
+  doc.setDrawColor(150, 150, 150).setLineWidth(0.15).line(box.x + 2, y, box.x + box.w - 2, y)
+
+  flowEntries(
+    doc,
+    buildEntries(events, BOX_SLUGS),
+    { x: box.x + 2.5, y: y + 1.5, w: box.w - 5, h: box.y + box.h - y - 3 },
+    1,
+  )
+}
+
+// pozostałe wydarzenia w kolumnach pod kalendarzem
+export function drawEventColumns(doc: jsPDF, events: CalEvent[], box: Box) {
+  flowEntries(doc, buildEntries(events, BOTTOM_SLUGS), box, 4, 5)
 }

@@ -30,3 +30,25 @@ export function bufToBase64(buf: ArrayBuffer) {
   }
   return btoa(bin)
 }
+
+const pad = (n: number) => String(n).padStart(2, '0')
+
+// '02.11–27.11.2026' albo '01.09.2026' (krótsze zakresy oszczędzają miejsce)
+export function fmtRange(start: string, end: string | null) {
+  const s = parse(start)
+  const full = (d: Date) => `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`
+  if (!end || end === start) return full(s)
+  const e = parse(end)
+  if (s.getFullYear() === e.getFullYear()) {
+    return `${pad(s.getDate())}.${pad(s.getMonth() + 1)}–${full(e)}`
+  }
+  return `${full(s)}–${full(e)}`
+}
+
+export function schoolDaysLabel(n: number) {
+  if (n === 1) return '1 dzień szkolny'
+  const last = n % 10
+  const lastTwo = n % 100
+  const few = last >= 2 && last <= 4 && !(lastTwo >= 12 && lastTwo <= 14)
+  return `${n} ${few ? 'dni szkolne' : 'dni szkolnych'}`
+}
