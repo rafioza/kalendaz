@@ -1,99 +1,116 @@
 import type { jsPDF } from 'jspdf'
 import { drawSwatch } from './hatch'
+import { drawSmallCaps } from './smallCaps'
 
 export type FlowEntry =
-  | { kind: 'heading'; text: string; color?: string; hatches?: string[] }
-  | { kind: 'item'; date: string; text: string; hatch?: string }
+  | { kind: 'heading'; text: string; color?: string; hatches?: string[]; bold?: boolean }
+  | { kind: 'title'; text: string } // kapitaliki, np. "Pierwsze półrocze"
+  | { kind: 'item'; date: string; text: string; hatch?: string; bold?: boolean; bullet?: boolean }
 
 export interface Box { x: number; y: number; w: number; h: number }
 
-interface Placed { entry: FlowEntry; col: number; y: number; lines: string[] }
+interface Placed { entry: FlowEntry; y: number; lines: string[]; dw: number }
 
-function layout(doc: jsPDF, entries: FlowEntry[], box: Box, cols: number, gap: number, fs: number) {
+const LH = 0.42   // mm wysokości wiersza na 1 pt czcionki
+const INDENT = 2.4 // wcięcie punktorów
+
+function place(doc: jsPDF, entries: FlowEntry[], w: number, fs: number) {
   doc.setFont('Roboto', 'normal').setFontSize(fs)
-  const lh = fs * 0.42
-  const swW = lh * 0.8 + 0.8 // szerokość kwadracika z kreskowaniem przy pozycji listy
-  const colW = (box.w - gap * (cols - 1)) / cols
+  const lh = fs * LH
+  const sw = lh * 0.85
+  const swW = sw + 1.2
 
-  const dateWidths = entries.flatMap(e => (e.kind === 'item' ? [doc.getTextWidth(e.date)] : []))
-  const dateW = (dateWidths.length ? Math.max(...dateWidths) : 0) + 1.5
-
-  const wrapped = entries.map(e =>
-    e.kind === 'heading'
-      ? [e.text]
-      : (doc.splitTextToSize(e.text, colW - dateW - (e.hatch ? swW : 0)) as string[]),
-  )
+  // szerokość kolumny dat liczona osobno dla każdej grupy pozycji (między nagłówkami)
+  const groupW: number[] = new Array(entries.length).fill(0)
+  let start = 0
+  const flush = (end: number) => {
+    const ws = entries.slice(start, end).flatMap(e =>
+      e.kind === 'item' && e.date ? [doc.getTextWidth(e.date)] : [])
+    const m = ws.length ? Math.max(...ws) + 1.4 : 0
+    for (let i = start; i < end; i++) groupW[i] = m
+  }
+  entries.forEach((e, i) => {
+    if (e.kind !== 'item') { flush(i); start = i + 1 }
+  })
+  flush(entries.length)
 
   const placed: Placed[] = []
-  let col = 0
   let y = 0
-  let fits = true
+  entries.forEach((e, i) => {
+    const bold = e.kind === 'title' || (e.kind === 'heading' && e.bold !== false) || (e.kind === 'item' && !!e.bold)
+    doc.setFont('Roboto', bold ? 'bold' : 'normal')
 
-  for (let i = 0; i < entries.length; i++) {
-    const e = entries[i]
-    const lines = wrapped[i]
-    const own = lines.length * lh
-    const pre = e.kind === 'heading' && y > 0 ? lh * 0.7 : 0
-    // nagłówek nie może zostać sam na dole kolumny
-    const nextH = e.kind === 'heading' && wrapped[i + 1] ? wrapped[i + 1].length * lh : 0
-
-    if (y + pre + own + nextH > box.h) {
-      col++
-      y = 0
-      if (col >= cols) { fits = false; break }
-      placed.push({ entry: e, col, y, lines })
-      y += own
+    let lines: string[]
+    if (e.kind === 'item') {
+      const lead = (e.bullet ? INDENT : 0) + groupW[i] + (e.hatch ? swW : 0)
+      lines = doc.splitTextToSize(e.text, w - lead) as string[]
+    } else if (e.kind === 'heading') {
+      const hasSw = !!(e.color || e.hatches?.length)
+      lines = doc.splitTextToSize(e.text, w - (hasSw ? swW : 0)) as string[]
     } else {
-      y += pre
-      placed.push({ entry: e, col, y, lines })
-      y += own
+      lines = [e.text]
     }
-  }
-  return { placed, fits, lh, colW, dateW, swW }
+
+    if (e.kind !== 'item' && y > 0) y += lh * (e.kind === 'title' ? 0.9 : 0.7)
+    placed.push({ entry: e, y, lines, dw: groupW[i] })
+    y += lines.length * lh
+  })
+
+  doc.setFont('Roboto', 'normal')
+  return { placed, height: y, lh, sw, swW }
 }
 
-// Wybiera największą czcionkę, przy której całość mieści się w ramce
-export function flowEntries(
+export function measureHeight(doc: jsPDF, entries: FlowEntry[], w: number, fs: number) {
+  return place(doc, entries, w, fs).height
+}
+
+// Największy rozmiar czcionki (pt), przy którym wszystkie bloki mieszczą się w maxH
+export function fitFont(
   doc: jsPDF,
-  entries: FlowEntry[],
-  box: Box,
-  cols: number,
-  gap = 4,
-  maxFs = 6.5,
-  minFs = 3.6,
+  blocks: { entries: FlowEntry[]; w: number }[],
+  maxH: number,
+  maxFs: number,
+  minFs: number,
 ) {
   let fs = maxFs
-  let res = layout(doc, entries, box, cols, gap, fs)
-  while (!res.fits && fs - 0.2 >= minFs) {
-    fs -= 0.2
-    res = layout(doc, entries, box, cols, gap, fs)
+  while (fs > minFs && blocks.some(b => measureHeight(doc, b.entries, b.w, fs) > maxH)) {
+    fs = Math.round((fs - 0.1) * 10) / 10
   }
+  return fs
+}
 
-  const { placed, lh, colW, dateW, swW } = res
-  doc.setFontSize(fs)
+export function drawEntries(doc: jsPDF, entries: FlowEntry[], x: number, y0: number, w: number, fs: number) {
+  const L = place(doc, entries, w, fs)
 
-  for (const p of placed) {
-    const x = box.x + p.col * (colW + gap)
-    const top = box.y + p.y
-    const base = top + lh * 0.8
+  for (const p of L.placed) {
     const e = p.entry
+    const top = y0 + p.y
+    const base = top + L.lh * 0.8
 
-      if (e.kind === 'heading') {
-        const hasSwatch = !!(e.color || e.hatches?.length)
-        if (hasSwatch) drawSwatch(doc, x, top + lh * 0.05, lh * 0.8, { fill: e.color, hatches: e.hatches })
-          doc.setFont('Roboto', 'bold').setFontSize(fs).setTextColor(0, 0, 0)
-          doc.text(e.text, x + (hasSwatch ? lh + 0.8 : 0), base)
-      } else {
-      doc.setFont('Roboto', 'normal').setFontSize(fs).setTextColor(0, 0, 0)
-      doc.text(e.date, x, base)
-      let tx = x + dateW
-      if (e.hatch) {
-        drawSwatch(doc, tx, top + lh * 0.05, lh * 0.8, { hatches: [e.hatch] })
-        tx += swW
-        doc.setFont('Roboto', 'normal').setFontSize(fs).setTextColor(0, 0, 0)
+    if (e.kind === 'title') {
+      doc.setFont('Roboto', 'bold').setTextColor(0, 0, 0)
+      drawSmallCaps(doc, e.text, x, base, fs)
+    } else if (e.kind === 'heading') {
+      const hasSw = !!(e.color || e.hatches?.length)
+      if (hasSw) drawSwatch(doc, x, top + L.lh * 0.05, L.sw, { fill: e.color, hatches: e.hatches })
+      doc.setFont('Roboto', e.bold === false ? 'normal' : 'bold').setFontSize(fs).setTextColor(0, 0, 0)
+      p.lines.forEach((ln, k) => doc.text(ln, x + (hasSw ? L.swW : 0), base + k * L.lh))
+    } else {
+      let tx = x
+      doc.setTextColor(0, 0, 0)
+      if (e.bullet) {
+        doc.setFillColor(0, 0, 0).circle(x + 0.8, base - L.lh * 0.3, 0.3, 'F')
+        tx += INDENT
       }
-      p.lines.forEach((ln, k) => doc.text(ln, tx, base + k * lh))
+      doc.setFont('Roboto', 'normal').setFontSize(fs)
+      if (e.date) doc.text(e.date, tx, base)
+      tx += p.dw
+      if (e.hatch) {
+        drawSwatch(doc, tx, top + L.lh * 0.05, L.sw, { hatches: [e.hatch] })
+        tx += L.swW
+      }
+      doc.setFont('Roboto', e.bold ? 'bold' : 'normal').setFontSize(fs).setTextColor(0, 0, 0)
+      p.lines.forEach((ln, k) => doc.text(ln, tx, base + k * L.lh))
     }
   }
-  return res.fits
 }

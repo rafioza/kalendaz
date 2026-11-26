@@ -32,17 +32,34 @@ export function bufToBase64(buf: ArrayBuffer) {
 }
 
 const pad = (n: number) => String(n).padStart(2, '0')
+const full = (d: Date) => `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`
 
-// '02.11–27.11.2026' albo '01.09.2026' (krótsze zakresy oszczędzają miejsce)
+// zwięzły zakres: '04–07.05.2027', '28.05–02.06.2027', '01.09.2026'
 export function fmtRange(start: string, end: string | null) {
   const s = parse(start)
-  const full = (d: Date) => `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`
   if (!end || end === start) return full(s)
   const e = parse(end)
-  if (s.getFullYear() === e.getFullYear()) {
-    return `${pad(s.getDate())}.${pad(s.getMonth() + 1)}–${full(e)}`
-  }
-  return `${full(s)}–${full(e)}`
+  if (s.getFullYear() !== e.getFullYear()) return `${full(s)}–${full(e)}`
+  if (s.getMonth() === e.getMonth()) return `${pad(s.getDate())}–${full(e)}`
+  return `${pad(s.getDate())}.${pad(s.getMonth() + 1)}–${full(e)}`
+}
+
+// pełny zakres: '18.01.2027 – 31.01.2027'
+export function fmtRangeFull(start: string, end: string | null) {
+  if (!end || end === start) return full(parse(start))
+  return `${full(parse(start))} – ${full(parse(end))}`
+}
+
+// "Rada klasyfikacyjna - klasy maturalne (I półrocze)" -> "klasy maturalne"
+export function shortName(name: string) {
+  const m = name.match(/^[^-–/]+?\s[-–]\s(.+)$/)
+  return (m ? m[1] : name).replace(/\s*\((I|II) półrocze\)\s*$/i, '').trim()
+}
+
+// do zdań: "Przerwa wakacyjna" -> "przerwa wakacyjna"
+export function sentence(name: string) {
+  const last = name.split(' / ').pop()!.trim()
+  return /^Dzień Otwarty/.test(last) ? last : last.charAt(0).toLowerCase() + last.slice(1)
 }
 
 export function schoolDaysLabel(n: number) {

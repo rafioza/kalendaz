@@ -174,14 +174,7 @@ async function logout() {
         </UFormField>
        
       </UForm>
-        <ClientOnly>
-    <CalendarMonthCalendar
-      year-start="2026-09-01"
-      year-end="2027-08-31"
-      :categories="categories"
-      :events="events??[]"
-    />
-  </ClientOnly>
+        
     </section>
 
     <section class="space-y-3">
