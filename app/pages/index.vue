@@ -68,8 +68,8 @@ async function downloadPdf() {
     </template>
   </div>
 
-  <section class="flex justify-center items-center w-full p-3">
-    <ClientOnly>
+  <section class="flex justify-center items-center w-full p-3 ">
+    <ClientOnly class="flex justify-center">
       <CalendarMonthCalendar
         :year-start="`${SCHOOL_YEAR_START}-09-01`"
         :year-end="`${SCHOOL_YEAR_START + 1}-08-31`"

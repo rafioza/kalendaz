@@ -133,12 +133,13 @@ function onTouchEnd(e: TouchEvent) {
 /* Kalendarz nie ma własnej wysokości i szerokości, trzeba je ustawić */
 .sx-vue-calendar-wrapper {
   width: 100%;
-  max-width: 100vw;
+  max-width: 80vw;
   height: 700px;
   max-height: 90vh;
 }
 .sx-vue-calendar-wrapper:has(.sx__is-calendar-small) {
   height: auto;
+  max-width: 100vw;
   max-height: none;
 }
 .sx__sunday,
