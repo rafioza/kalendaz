@@ -26,6 +26,42 @@ const categories = [
   { slug: 'praktyki', label: 'Praktyki zawodowe', color: '#6366F1' },
 ]
 
+const passwordOpen = ref(false)
+const changingPassword = ref(false)
+const passwordState = reactive({ password: '', confirm: '' })
+
+function validatePassword(s: typeof passwordState) {
+  const errors: { name: string; message: string }[] = []
+  if (!s.password || s.password.length < 6) {
+    errors.push({ name: 'password', message: 'Hasło musi mieć co najmniej 6 znaków' })
+  }
+  if (s.confirm !== s.password) {
+    errors.push({ name: 'confirm', message: 'Hasła nie są takie same' })
+  }
+  return errors
+}
+
+function cancelPassword() {
+  passwordOpen.value = false
+}
+
+watch(passwordOpen, (open) => {
+  if (!open) Object.assign(passwordState, { password: '', confirm: '' })
+})
+
+async function changePassword() {
+  changingPassword.value = true
+  const { error } = await supabase.auth.updateUser({ password: passwordState.password })
+  changingPassword.value = false
+
+  if (error) {
+    toast.add({ title: 'Nie udało się zmienić hasła', description: error.message, color: 'error' })
+    return
+  }
+  toast.add({ title: 'Hasło zostało zmienione', color: 'success' })
+  passwordOpen.value = false
+}
+
 const filterItems = [{ label: 'Wszystkie', value: 'wszystkie' }, ...items]
 const filter = ref('wszystkie')
 
@@ -148,11 +184,37 @@ async function logout() {
 
 <template>
   <template v-if="user">
-  <UHeader title="kalendarz" :toggle="false" class="bg-secondary" >
-    <template #right>
-      <UButton label="wyloguj" @click="logout"/>
-    </template>
+    <UHeader title="kalendarz" :toggle="false" class="bg-secondary" >
+      <template #right>
+        <div class="flex gap-2">
+          <UButton label="Zmiana hasła" variant="outline" @click="passwordOpen = true" />
+          <UButton label="wyloguj" @click="logout" />
+        </div>
+      </template>
     </UHeader>
+    <UModal v-model:open="passwordOpen" title="Zmiana hasła">
+  <template #body>
+    <UForm
+      :state="passwordState"
+      :validate="validatePassword"
+      class="space-y-4"
+      @submit="changePassword"
+    >
+      <UFormField label="Nowe hasło" name="password">
+        <UInput v-model="passwordState.password" type="password" class="w-full" />
+      </UFormField>
+
+      <UFormField label="Powtórz hasło" name="confirm">
+        <UInput v-model="passwordState.confirm" type="password" class="w-full" />
+      </UFormField>
+
+      <div class="flex justify-end gap-2">
+        <UButton label="Anuluj" color="neutral" variant="outline" @click="cancelPassword" />
+        <UButton type="submit" label="Zmień" :loading="changingPassword" />
+      </div>
+    </UForm>
+  </template>
+</UModal>
   <div class="p-4 space-y-6">
     <section>
       <h1 class="text-xl font-semibold mb-3">Dodaj wydarzenie</h1>
